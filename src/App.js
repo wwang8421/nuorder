@@ -54,17 +54,10 @@ const App = () => {
         } else if (e.keyCode === 40 && cursor < results.length - 1) {
             setCursor(cursor => cursor + 1);
         } else if(e.keyCode === 13) {
-            console.log('cursor', cursor);
-            console.log(results[cursor]);
             window.open(`https://github.com/facebook/react/issues/${results[cursor]?.number}`, "_blank");
+            setInputValue('');
         }
     };
-
-    const handleKeyDownDropdown = (e) => {
-        if(e.key === 'Enter'){
-            handleClick();
-        }
-    }
 
     const handleClick = (e, number) => {
         window.open(`https://github.com/facebook/react/issues/${number}`, "_blank");
@@ -94,8 +87,8 @@ const App = () => {
           {!loading && error ? (<p>Error in getting results: Please Search again</p>) : (
               <>
               {!loading && openDropdown && results && results.map(({ number, updated_At, user, title}, index) => (
-                 <div key={number} tabIndex="0" onClick={handleClick} onKeyDown={handleKeyDownDropdown}>
-                     <Result handleKeyDownDropdown={handleKeyDownDropdown} handleClick={handleClick} active={cursor === index} number={number} updatedAt={updated_At} user={user} title={title}/>
+                 <div key={number}>
+                     <Result handleClick={handleClick} active={cursor === index} number={number} updatedAt={updated_At} user={user} title={title}/>
                  </div>
               ))}
               </>
@@ -105,9 +98,9 @@ const App = () => {
   );
 };
 
-export const Result = ({ handleKeyDownDropdown, handleClick, active, number, user, title }) => {
+export const Result = ({ handleClick, active, number, user, title }) => {
     return(
-        <ResultWrapper tabIndex={1} active={active} onClick={(e) => handleClick(e, number)} onKeyDown={e => handleKeyDownDropdown(e)}>
+        <ResultWrapper active={active} onClick={(e) => handleClick(e, number)}>
             <MainWrapper>
                 <h5>{title}</h5>
                 <SecondaryWraper>
@@ -115,7 +108,6 @@ export const Result = ({ handleKeyDownDropdown, handleClick, active, number, use
                     <p>by {user?.login}</p>
                 </SecondaryWraper>
             </MainWrapper>
-
         </ResultWrapper>
     )
 };
