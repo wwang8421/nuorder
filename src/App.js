@@ -1,42 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import styled from 'styled-components';
+import React, { useState, useCallback } from 'react';
 import axios from 'axios';
-import ResultsDropDown from './Results';
-
-const AppContainer = styled.div`
-  height: 100%;
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-`;
-
-const MainContainer = styled.main`
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  width: 500px;
-  
-  > select::-ms-expand {
-    display: none;
-  }
-`;
-
-const SearchLabel = styled.label`
-  font-weight: bold;
-  margin-right: 10px;
-  width: 100%;
-  > span{
-    display: flex;
-    justify-content: center;
-  }
-  > input {
-    width: 100%;
-  }
-`;
-
-const SearchContainer = styled.div`
-  display: flex;
-`;
+import { AppContainer, SecondaryWraper, MainContainer, MainWrapper, ResultWrapper, SearchContainer, SearchLabel } from "./styles";
 
 const debounce = (fn, wait) => {
   let id = null;
@@ -54,63 +18,66 @@ const App = () => {
     const [inputValue, setInputValue] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
+    const [openDropdown, setOpenDropdown] = useState(false);
     const [results, setResults] = useState([]);
-    const inputRef = useRef();
+    const [cursor, setCursor] = useState(0);
 
-
-    // `https://api.github.com/search/issues?q=stress+test+label:bug+language:python+state:closed&page=1&per_page=100`
-    const fetchFacebookGithubIssues = async() => {
-      try{
-          const { data } = await axios.get(`https://api.github.com/search/isues/q=repo:facebook/react+type:issue+Error`)
-      } catch(e){
-          setError(true);
-      }
+    const fetchFacebookGithubIssues = async(input) => {
+        if(input.length > 0){
+          try{
+              setError(false);
+              setLoading(true);
+              const header = { 'Accept': 'application/vnd.github.v3.text-match+json' };
+              const newInputValue = input.split(' ').join('+');
+              const { data: { items } } = await axios.get(`https://api.github.com/search/issues?q=${newInputValue}+repo:facebook/react+in:title`, {
+                  header: header,
+              });
+              setResults(items);
+          } catch(e){
+              setError(true);
+          } finally{
+              setLoading(false);
+          }
+        }
     };
 
-    const debounced = useCallback(debounce(fetchFacebookGithubIssues, 500), [inputValue]);
-
-        useEffect(() => {
-        const fetchFacebookGithubIssues = async () => {
-            try{
-                setLoading(true);
-                setError(false);
-                const header = { 'Accept': 'application/vnd.github.v3.text-match+json' };
-                // const { data } = await axios.get(`https://api.github.com/search/issues/q=tree+org:facebook+repo:facebook/react+in:title`, {
-                //     header: header,
-                // });
-                // console.log('data', data);
-                const { data } = await axios.get(`https://api.github.com/repos/facebook/react/issues?page=1&per_page=100`);
-                setResults(data);
-            } catch(e) {
-                setError(true);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchFacebookGithubIssues()
-    }, []);
-
-    // useEffect(() => {
-    //     debounce(fetchFacebookGithubIssues, 500);
-    // }, [inputValue]);
+    const debounced = useCallback(debounce((input) => fetchFacebookGithubIssues(input), 500), []);
 
     const handleSearch = (e) => {
         setInputValue(e.target.value);
-        // debounce(filterResults, 500);
+        debounced(e.target.value);
     };
 
-    const handleClick = (e, url = "http://www.google.com/") => {
-        // window.open(url);
-        window.open(url, "_blank");
+    const handleKeyDown = (e) => {
+        if (e.keyCode === 38 && cursor > 0) {
+            setCursor(cursor => cursor - 1);
+        } else if (e.keyCode === 40 && cursor < results.length - 1) {
+            setCursor(cursor => cursor + 1);
+        } else if(e.keyCode === 13) {
+            console.log('cursor', cursor);
+            console.log(results[cursor]);
+            window.open(`https://github.com/facebook/react/issues/${results[cursor]?.number}`, "_blank");
+        }
+    };
+
+    const handleKeyDownDropdown = (e) => {
+        if(e.key === 'Enter'){
+            handleClick();
+        }
+    }
+
+    const handleClick = (e, number) => {
+        window.open(`https://github.com/facebook/react/issues/${number}`, "_blank");
         setInputValue("");
     };
 
-    const filterResults = () => {
-        // let newResults = results.filter()
+    const handleInputClick = (e) => {
+      e.stopPropagation();
+      setOpenDropdown(true);
     };
 
   return (
-    <AppContainer>
+    <AppContainer onClick={() => setOpenDropdown(false)}>
       <header>
         <h1>Facebook Search Issue</h1>
       </header>
@@ -120,16 +87,15 @@ const App = () => {
                   <span>
                     Issue Search
                   </span>
-                <input name="search" id="search" list="issues" autoComplete="off" value={inputValue} onChange={handleSearch} />
-                {/*<button onClick={handleClick}>Click</button>*/}
+                <input name="search" id="search" list="issues" autoComplete="off" value={inputValue} onChange={handleSearch} onKeyDown={handleKeyDown} onClick={handleInputClick}/>
               </SearchLabel>
           </SearchContainer>
-
-          {error ? (<p>Error in getting results: Please Search again</p>) : (
+          {loading && <div>Loading....</div>}
+          {!loading && error ? (<p>Error in getting results: Please Search again</p>) : (
               <>
-              {results && results.map((result) => (
-                 <div>
-                     {console.log('results')}
+              {!loading && openDropdown && results && results.map(({ number, updated_At, user, title}, index) => (
+                 <div key={number} tabIndex="0" onClick={handleClick} onKeyDown={handleKeyDownDropdown}>
+                     <Result handleKeyDownDropdown={handleKeyDownDropdown} handleClick={handleClick} active={cursor === index} number={number} updatedAt={updated_At} user={user} title={title}/>
                  </div>
               ))}
               </>
@@ -139,8 +105,20 @@ const App = () => {
   );
 };
 
-              // <Suspense fallback={<div>Loading...</div>}>
-              //     <ResultsDropDown results={results} />
-              // </Suspense>
+export const Result = ({ handleKeyDownDropdown, handleClick, active, number, user, title }) => {
+    return(
+        <ResultWrapper tabIndex={1} active={active} onClick={(e) => handleClick(e, number)} onKeyDown={e => handleKeyDownDropdown(e)}>
+            <MainWrapper>
+                <h5>{title}</h5>
+                <SecondaryWraper>
+                    <p>#{number}</p>
+                    <p>by {user?.login}</p>
+                </SecondaryWraper>
+            </MainWrapper>
+
+        </ResultWrapper>
+    )
+};
+
 
 export default App;
